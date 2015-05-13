@@ -9,8 +9,8 @@ var test = [[2, 3, 7, 5, 3],
 
 var test2 = [[1,1,1,1,1,1],
               [1,1,1,1,1,1],
-              [1,1,4,4,1,1],
-              [1,1,4,4,1,1],
+              [1,1,5,5,1,1],
+              [1,1,5,5,1,1],
               [1,1,1,1,1,1]];
 
 /*
@@ -46,23 +46,25 @@ Point.prototype.addEdge = function (point, landscape) {
   return edge;
 };
 
-Point.prototype.getLake = function (visited, W) {
+Point.prototype.getConnected = function (visited) {
   var lake = [];
 
-  findLakePoints(this);
+  var type = this.isInLake;
+
+  findConnectedPoints(this);
 
   return lake;
 
-  function findLakePoints (point) {
+  function findConnectedPoints (point) {
     
     lake.push(point);
 
-    visited.push(point);
+    visited[point] = true; //using a JS object gives constant time lookup
 
     point.connections.forEach(function(edge){
-      if (edge.isLake){
-        if (lake.indexOf(edge.point1) === -1) findLakePoints(edge.point1);
-        if (lake.indexOf(edge.point2) === -1) findLakePoints(edge.point2);
+      if (type === edge.isLake){
+        if (lake.indexOf(edge.point1) === -1 && edge.point1.isInLake === type) findConnectedPoints(edge.point1);
+        if (lake.indexOf(edge.point2) === -1 && edge.point2.isInLake === type) findConnectedPoints(edge.point2);
       }
     });
   }
@@ -103,20 +105,15 @@ Landscape.prototype.isInBounds = function (x, y) {
 };
 
 Landscape.prototype.findLakes = function () {
-/*
-start at (0,0)
-if point is below water line, add to lakes
-for each of four possible points, if it's below the water line, 
- */
 
-  var visited = [];
+  var visited = {};
   var lakes = [];
 
   this.allPoints.forEach(function(point){
     //the second half of this if statement handles a single-point lake,
     //which is missed because 
-    if (point.isInLake && visited.indexOf(point) === -1) {
-      lakes.push(point.getLake(visited, this.W));
+    if (point.isInLake && !visited.hasOwnProperty(point)) {
+      lakes.push(point.getConnected(visited));
     }
   }, this);
 
@@ -183,15 +180,94 @@ function calculateArea (points) {
 function getPerimeter (points){
 
   return points.filter(function(point){
-    var permieter = false;
+    var perimeter = false;
     point.connections.forEach(function(edge){
       if (!edge.isLake) perimeter = true;
     });
+
+    if (point.connections.length < 4) perimeter = true; //if it's on the edge of the matrix
     return perimeter;
   });
 
 }
 
+function getVertices (points) {
+  var center = calculateCenter(points);
+  points.sort(clockwiseSortComparison.bind(null, center));
+
+  var vertices = [];
+
+  var l = 2, m = 1, t = 0;
+
+  var leadingPoint = vertices[l], middlePoint = vertices[m], trailingPoint = vertices[t];
+
+  while (t < points.length){
+
+    if (leadingPoint.x !== trailingPoint.x || leadingPoint.y || trailingPoint.y) vertices.push(middlePoint);
+
+    l++;
+    m++;
+    t++;
+    if (l > points.length) l = 0;
+    if (m > points.length) m = 0;
+    leadingPoint = vertices[l];
+    middlePoint = vertices[m];
+    trailingPoint = vertices[t];
+  }
+
+
+};
+
+function getBounds (points) {
+
+  var north = Infinity, south = 0, east = 0, west = Infinity;
+
+  points.forEach(function(point){
+    if (point.x < west) west = point.x;
+    if (point.x > east) east = point.x;
+    if (point.y < north) north = point.y;
+    if (point.y > south) south = point.y;
+  });
+
+  return {north: north, south: south, east: east, west: west};
+}
+
+function detectIslands (landscape, bounds){
+  var islands = [], islandPoints = [], visitedIslandPoints = {};
+
+  for (var y = bounds.north; y < bounds.south; y++){
+    var islandStart, potentialIslandPoints = [];
+    potentialIslandPoints = [];
+    for (var x = bounds.west; x < bounds.east; x++){
+      var point = landscape.getPoint(x,y);
+      if (!point.isInLake && !islandStart) islandStart = point; //if we haven't hit land yet, and we hit it now, potential island
+      if (islandStart && !point.isInLake) potentialIslandPoints.push(point); //keep track of potential 
+      if (islandStart && point.isInLake){ //if we hit water again, we have an island
+        islandPoints = islandPoints.concat(potentialIslandPoints);
+      }
+    }
+    islandStart = undefined;
+  }
+
+  console.log(islandPoints);
+
+  islandPoints.forEach(function(point){
+    debugger;
+    if (!visitedIslandPoints.hasOwnProperty(point)){
+      islands.push(point.getConnected(visitedIslandPoints));
+    }
+  });
+
+  return islands;
+
+}
+
+
+//after I have perimeter points, find the bounding box around all.
+//
+//
+//don't forget multiple island case
+//you can use a second graph traversal that finds the full extent of the island
 
 
 // var points = [{x:1,y:-1},{x:-1,y:1},{x:-1,y:-1},{x:1,y:1}];
@@ -205,5 +281,11 @@ function getPerimeter (points){
 //a point is a vertex if it is on an edge and it is 
 //
 
-var landscape = new Landscape(test, 5);
-console.log(getPerimeter(landscape.findLakes()[2]));
+var landscape = new Landscape(test2, 5);
+// console.log(landscape.findLakes());
+var perimeter = getPerimeter(landscape.findLakes()[0]);
+// console.log(perimeter.toString());
+var bounds = getBounds(perimeter);
+// console.log(bounds);
+var islands = detectIslands(landscape, bounds);
+console.log(islands);
