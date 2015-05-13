@@ -8,8 +8,8 @@ var test = [[2, 3, 7, 5, 3],
              [0, 5, 2, 3, 4]];
 
 var test2 = [[1,1,1,1,1,1],
-              [1,1,1,1,1,1],
-              [1,1,5,5,1,1],
+              [1,1,1,1,5,1],
+              [1,1,5,1,1,1],
               [1,1,5,5,1,1],
               [1,1,1,1,1,1]];
 
@@ -102,6 +102,10 @@ Landscape.prototype.getPoint = function (x, y) {
 
 Landscape.prototype.isInBounds = function (x, y) {
   return (x < this.x && x > -1 && y < this.y && y > -1);
+};
+
+Landscape.prototype.isOnEdge = function(point) {
+  return (point.x === 0 || point.y === 0 || point.x === this.x-1 || point.y === this.y-1);
 };
 
 Landscape.prototype.findLakes = function () {
@@ -235,30 +239,34 @@ function getBounds (points) {
 function detectIslands (landscape, bounds){
   var islands = [], islandPoints = [], visitedIslandPoints = {};
 
-  for (var y = bounds.north; y < bounds.south; y++){
+  for (var y = bounds.north; y <= bounds.south; y++){
     var islandStart, potentialIslandPoints = [];
     potentialIslandPoints = [];
-    for (var x = bounds.west; x < bounds.east; x++){
+    for (var x = bounds.west; x <= bounds.east; x++){
       var point = landscape.getPoint(x,y);
       if (!point.isInLake && !islandStart) islandStart = point; //if we haven't hit land yet, and we hit it now, potential island
       if (islandStart && !point.isInLake) potentialIslandPoints.push(point); //keep track of potential 
       if (islandStart && point.isInLake){ //if we hit water again, we have an island
         islandPoints = islandPoints.concat(potentialIslandPoints);
+        islandStart = undefined;
       }
     }
     islandStart = undefined;
   }
 
-  console.log(islandPoints);
-
   islandPoints.forEach(function(point){
-    debugger;
     if (!visitedIslandPoints.hasOwnProperty(point)){
       islands.push(point.getConnected(visitedIslandPoints));
     }
   });
 
-  return islands;
+  return islands.filter(function(island){
+    var edge = false;
+    island.forEach(function(point){
+      if (landscape.isOnEdge(point)) edge = true;
+    });
+    return !edge;
+  });
 
 }
 
