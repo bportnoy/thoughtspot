@@ -9,7 +9,7 @@ var test = [[2, 3, 7, 5, 3],
 
 var test2 = [[1,1,1,1,1,1],
               [1,1,1,1,5,1],
-              [1,1,5,1,1,1],
+              [1,1,5,5,1,1],
               [1,1,5,5,1,1],
               [1,1,1,1,1,1]];
 
@@ -24,6 +24,7 @@ var Point = function (x, y, z, W){
   this.y = y;
   this.z = z;
   this.isInLake = (z < W);
+  this.lakeConnections = 0;
   this.connections = [];
 };
 
@@ -36,6 +37,10 @@ var Edge = function (point1, point2) {
   this.point1 = point1;
   this.point2 = point2;
   this.isLake = (point1.isInLake && point2.isInLake);
+  if (this.isLake){
+    point1.lakeConnections++;
+    point2.lakeConnections++;
+  }
 };
 
 Point.prototype.addEdge = function (point, landscape) {
@@ -130,9 +135,49 @@ Landscape.prototype.findLargestLakes = function () {
   var largestSurface = [0,], largestVolume = [0,];
 
   lakes.forEach(function(lake){
-    var center = calculateCenter(lake);
-    lake.sort(clockwiseSortComparison.bind(null, center));
-  });
+    //we'll start with surface area
+    //first, we need to detect if the lake has any islands in it
+    
+    var perimeter = getPerimeter(lake);
+    var bounds = getBounds(perimeter); //defines the area to scan for islands
+    var islands = detectIslands(this, bounds);
+    var vertices;
+
+    if (!islands.length) {
+      vertices = getVertices(perimeter);
+      lake.surfaceArea = calculateArea(vertices);
+    } else{
+      var islandArea = 0;
+      
+      islands.forEach(function(island){
+        var islandPerimeter = getPerimeter(island);
+        var islandVertices = getVertices(islandPerimeter);
+        islandArea += calculateArea(islandVertices);
+        perimeter = perimeter.filter(function(point){
+          return islandVertices.indexOf(point) === -1; //returns true if the point isn't an island vertex
+        });
+      });
+
+      vertices = getVertices(perimeter);
+      lake.surfaceArea =  calculateArea(vertices) - islandArea;
+    }
+    
+    if (lake.surfaceArea > largestSurface[0]) largestSurface = [lake.surfaceArea, lake];
+
+    //on to volume! we'll use a rough approximation here, counting each point as 1/4 of the water column and not accounting for slope
+    
+    if (lake.surfaceArea === 0) lake.volume = 0; //can't have volume without surface area, although this does create some weird dead space that's not land or water in terms of volume calcs if there's a non-polygonal shape above water level
+    else {
+      var volume = 0;
+      lake.forEach(function(point){
+        volume += (this.W - point.z) * (0.25 * point.lakeConnections); // 1/4 water column for each bit that's in the lake
+      }, this);
+      lake.volume = volume;
+      if (lake.volume > largestVolume[0]) largestVolume = [lake.volume, lake];
+    }
+  }, this);
+
+  return {largestVolume: largestVolume[1], largestSurface: largestSurface[1]};
 
 };
 
@@ -177,25 +222,26 @@ function clockwiseSortComparison (center, a, b){
 
 }
 
-function calculateArea (points) {
-
-}
-
 function getPerimeter (points){
 
   return points.filter(function(point){
-    var perimeter = false;
-    point.connections.forEach(function(edge){
-      if (!edge.isLake) perimeter = true;
-    });
 
-    if (point.connections.length < 4) perimeter = true; //if it's on the edge of the matrix
-    return perimeter;
+    if (point.connections.length < 4) return true; //if it's on the edge of the matrix
+    
+    for (var i = 0; i < point.connections.length; i++){
+      if (point.connections[i].point1.isInLake !== point.connections[i].point2.isInLake) return true;
+    }
+
+    return false;
+
   });
 
 }
 
 function getVertices (points) {
+
+  if (points.length < 3) return points; //not a valid polygon
+
   var center = calculateCenter(points);
   points.sort(clockwiseSortComparison.bind(null, center));
 
@@ -203,23 +249,24 @@ function getVertices (points) {
 
   var l = 2, m = 1, t = 0;
 
-  var leadingPoint = vertices[l], middlePoint = vertices[m], trailingPoint = vertices[t];
+  var leadingPoint = points[l], middlePoint = points[m], trailingPoint = points[t];
 
   while (t < points.length){
 
-    if (leadingPoint.x !== trailingPoint.x || leadingPoint.y || trailingPoint.y) vertices.push(middlePoint);
+    //simple test since all angles in the problem space are right angles
+    if (leadingPoint.x !== trailingPoint.x || leadingPoint.y !== trailingPoint.y) vertices.push(middlePoint);
 
-    l++;
-    m++;
-    t++;
-    if (l > points.length) l = 0;
-    if (m > points.length) m = 0;
-    leadingPoint = vertices[l];
-    middlePoint = vertices[m];
-    trailingPoint = vertices[t];
+    l++, m++, t++;
+
+    if (l > points.length-1) l = 0;
+    if (m > points.length-1) m = 0;
+
+    leadingPoint = points[l];
+    middlePoint = points[m];
+    trailingPoint = points[t];
   }
 
-
+  return vertices;
 };
 
 function getBounds (points) {
@@ -270,6 +317,24 @@ function detectIslands (landscape, bounds){
 
 }
 
+function calculateArea (vertices){
+
+  if (vertices.length < 3) return 0; //can't find the area of nothin'!
+
+  var n = vertices.length, area = 0;;
+
+  vertices.push(vertices[0]); //close the polygon
+
+  for (var i = 1, j = 2, k = 0; i < n; i++, j++, k++){
+    area += vertices[i].x * (vertices[j].y - vertices[k].y);
+  }
+
+  area += vertices[n].x * (vertices[1].y - vertices[n-1].y); //once more
+
+  return Math.abs(area/2);
+
+}
+
 
 //after I have perimeter points, find the bounding box around all.
 //
@@ -296,4 +361,11 @@ var perimeter = getPerimeter(landscape.findLakes()[0]);
 var bounds = getBounds(perimeter);
 // console.log(bounds);
 var islands = detectIslands(landscape, bounds);
-console.log(islands);
+// console.log(islands);
+
+// var islandVertices = getVertices(islands[1]);
+
+// var islandArea = calculateArea(islands[1]);
+// console.log(islandArea);
+
+console.log(landscape.findLargestLakes());
