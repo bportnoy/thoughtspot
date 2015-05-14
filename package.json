@@ -1,0 +1,16 @@
+{
+  "name": "thoughtspot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Bradley Portnoy <bp@bradleyportnoy.com> (http://www.bradleyportnoy.com)",
+  "license": "ISC",
+  "dependencies": {
+    "chai": "^2.3.0",
+    "csv-parse": "^0.1.1",
+    "mocha": "^2.2.4"
+  }
+}

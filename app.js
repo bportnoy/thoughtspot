@@ -1,29 +1,5 @@
 var BinaryHeap = require('./BinaryHeap');
 
-var test = [[2, 3, 7, 5, 3],
-             [5, 6, 2, 4, 6],
-             [0, 5, 2, 3, 4]];
-
-var test2 = [[1,1,1,1,1,1],
-              [1,1,1,1,5,1],
-              [1,1,5,5,1,1],
-              [1,1,5,5,1,1],
-              [1,1,1,1,1,1]];
-
-var pathTest = [[1,1,1,1,5],
-                  [3,1,5,1,5],
-                  [3,1,5,1,1],
-                  [3,1,5,5,1],
-                  [1,1,5,1,1],
-                  [1,1,1,1,5]];
-
-var pathTest2 = [[1,1,5,1,5],
-                  [3,1,5,1,5],
-                  [3,1,5,1,1],
-                  [3,1,5,5,1],
-                  [1,1,5,1,1],
-                  [1,1,1,1,5]];
-
 /*
 The basic unit of our landscape, a 0-dimensional point.
  */
@@ -209,9 +185,10 @@ Landscape.prototype.findLargestLakes = function () {
     
     if (lake.surfaceArea === 0) lake.volume = 0; //can't have volume without surface area, although this does create some weird dead space that's not land or water in terms of volume calcs if there's a non-polygonal shape above water level
     else {
+      debugger;
       var volume = 0;
       lake.forEach(function(point){
-        volume += (this.W - point.z) * (0.25 * point.lakeConnections); // 1/4 water column for each bit that's in the lake
+        volume += (this.W - point.z) * (0.25 * (point.lakeConnections)/2); // 1/4 water column for each bit that's in the lake
       }, this);
       lake.volume = volume;
       if (lake.volume > largestVolume[0]) largestVolume = [lake.volume, lake];
@@ -475,42 +452,4 @@ function basicDistance (a, b) {
   return d1 + d2;
 }
 
-var landscape = new Landscape(pathTest,5);
-console.log(landscape.findMotorablePath([0,0], [4,2], 1).toString());
-var landscape = new Landscape(pathTest2,5);
-console.log(landscape.findMotorablePath([0,0], [4,2], 1).toString());
-
-
-//after I have perimeter points, find the bounding box around all.
-//
-//
-//don't forget multiple island case
-//you can use a second graph traversal that finds the full extent of the island
-
-
-// var points = [{x:1,y:-1},{x:-1,y:1},{x:-1,y:-1},{x:1,y:1}];
-// var center = {x:0, y:0};
-
-// console.log(points.sort(clockwiseSortComparison.bind(null, center)));
-// 
-// 
-//
-//a point is on an edge if any of its edges is not a lake
-//a point is a vertex if it is on an edge and it is 
-//
-
-var landscape = new Landscape(test2, 5);
-// console.log(landscape.findLakes());
-var perimeter = getPerimeter(landscape.findLakes()[0]);
-// console.log(perimeter.toString());
-var bounds = getBounds(perimeter);
-// console.log(bounds);
-var islands = detectIslands(landscape, bounds);
-// console.log(islands);
-
-// var islandVertices = getVertices(islands[1]);
-
-// var islandArea = calculateArea(islands[1]);
-// console.log(islandArea);
-
-console.log(landscape.findLargestLakes());
+module.exports = {point: Point, landscape: Landscape};
