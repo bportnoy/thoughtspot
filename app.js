@@ -1,7 +1,4 @@
-
-
-
-
+var BinaryHeap = require('./BinaryHeap');
 
 var test = [[2, 3, 7, 5, 3],
              [5, 6, 2, 4, 6],
@@ -13,12 +10,23 @@ var test2 = [[1,1,1,1,1,1],
               [1,1,5,5,1,1],
               [1,1,1,1,1,1]];
 
+var pathTest = [[1,1,1,1,5],
+                  [3,1,5,1,5],
+                  [3,1,5,1,1],
+                  [3,1,5,5,1],
+                  [1,1,5,1,1],
+                  [1,1,1,1,5]];
+
+var pathTest2 = [[1,1,5,1,5],
+                  [3,1,5,1,5],
+                  [3,1,5,1,1],
+                  [3,1,5,5,1],
+                  [1,1,5,1,1],
+                  [1,1,1,1,5]];
+
 /*
-create matrix of graph nodes
-determine connections for each point and instantiate edges
-
+The basic unit of our landscape, a 0-dimensional point.
  */
-
 var Point = function (x, y, z, W){
   this.x = x;
   this.y = y;
@@ -28,21 +36,12 @@ var Point = function (x, y, z, W){
   this.connections = [];
 };
 
+//For convenience.
 Point.prototype.toString = function (){
   return '(' + this.x + ',' + this.y + ')';
 };
 
-var Edge = function (point1, point2) {
-  this.grade = Math.abs(point1.z - point2.z);
-  this.point1 = point1;
-  this.point2 = point2;
-  this.isLake = (point1.isInLake && point2.isInLake);
-  if (this.isLake){
-    point1.lakeConnections++;
-    point2.lakeConnections++;
-  }
-};
-
+//Adds an edge.
 Point.prototype.addEdge = function (point, landscape) {
   var edge = new Edge(this, point);
   this.connections.push(edge);
@@ -51,6 +50,7 @@ Point.prototype.addEdge = function (point, landscape) {
   return edge;
 };
 
+//Runs a DFS graph traversal; if the point is in a lake, finds the lake. If the point is on land, finds connected land.
 Point.prototype.getConnected = function (visited) {
   var lake = [];
 
@@ -76,6 +76,26 @@ Point.prototype.getConnected = function (visited) {
 
 };
 
+
+/*
+The edge with which we'll connect our points. Includes whether the connection is within a lake, as well as the grade.
+ */
+var Edge = function (point1, point2) {
+  this.grade = Math.abs(point1.z - point2.z);
+  this.point1 = point1;
+  this.point2 = point2;
+  this.isLake = (point1.isInLake && point2.isInLake);
+  if (this.isLake){
+    point1.lakeConnections++;
+    point2.lakeConnections++;
+  }
+};
+
+
+/*
+Our landscape. We instantiate a point at each coordinate,
+and then add edges to define the point's relationships to adjacent points.
+ */
 var Landscape = function (matrix, W) {
 
   this.y = matrix.length;
@@ -101,18 +121,24 @@ var Landscape = function (matrix, W) {
 
 };
 
+//Utility function to return point.
 Landscape.prototype.getPoint = function (x, y) {
   return this.matrix[y][x];
 };
 
+//Utility function to determine if a point is in bounds.
 Landscape.prototype.isInBounds = function (x, y) {
   return (x < this.x && x > -1 && y < this.y && y > -1);
 };
 
+//Utility function to determine if a point is on the perimeter of the landscape.
 Landscape.prototype.isOnEdge = function(point) {
   return (point.x === 0 || point.y === 0 || point.x === this.x-1 || point.y === this.y-1);
 };
 
+/*
+Uses the Point getConnected method to find all the lakes; if a point has already been included in a lake, it is skipped.
+ */
 Landscape.prototype.findLakes = function () {
 
   var visited = {};
@@ -130,6 +156,21 @@ Landscape.prototype.findLakes = function () {
 
 };
 
+
+/*
+The real meat of the problem is in here. Since these are 0-dimensional points bounding the lake,
+we must do the following for each lake:
+1) Determine which points are on its perimeter.
+2) Determine is there are any islands contained within.
+  a) If there are no islands, find the vertices and calculate the area.
+  b) If there are islands, we have to disentangle the island perimeter points from the lake perimeter points.
+     Then we calculate the area of each island, the area of the lake and the islands, and subtract.
+     This would be a lot easier if there were no islands.
+3) Then we compare the calculated surface area to the largest found. Yes, this returns only the first lake found with that surface area.
+4) Then we calculate volume. I've simplified this greatly by going to 1/4 resolution, that is, for each "in the water"
+    connection, we add 1/4 of a column of water volume to the lake volume.
+5) Compare volumes as before; return the results.
+ */
 Landscape.prototype.findLargestLakes = function () {
   var lakes = this.findLakes();
   var largestSurface = [0,], largestVolume = [0,];
@@ -181,6 +222,7 @@ Landscape.prototype.findLargestLakes = function () {
 
 };
 
+//Utilty to calculate the center of a set of points.
 function calculateCenter (array) {
   
   var x = 0, y = 0;
@@ -197,6 +239,7 @@ function calculateCenter (array) {
 
 }
 
+//Utility function to sort points clockwise using the native JS sort.
 function clockwiseSortComparison (center, a, b){
 
   //simple quadrant comparison
@@ -222,6 +265,7 @@ function clockwiseSortComparison (center, a, b){
 
 }
 
+//Utility function to determine if the point is on the perimeter.
 function getPerimeter (points){
 
   return points.filter(function(point){
@@ -229,6 +273,7 @@ function getPerimeter (points){
     if (point.connections.length < 4) return true; //if it's on the edge of the matrix
     
     for (var i = 0; i < point.connections.length; i++){
+      //if it's an edge between water and land
       if (point.connections[i].point1.isInLake !== point.connections[i].point2.isInLake) return true;
     }
 
@@ -238,6 +283,7 @@ function getPerimeter (points){
 
 }
 
+//Utility to return the vertices from a perimeter.
 function getVertices (points) {
 
   if (points.length < 3) return points; //not a valid polygon
@@ -269,6 +315,7 @@ function getVertices (points) {
   return vertices;
 };
 
+//Utility to discover the rectangular bound of a polygon.
 function getBounds (points) {
 
   var north = Infinity, south = 0, east = 0, west = Infinity;
@@ -283,6 +330,10 @@ function getBounds (points) {
   return {north: north, south: south, east: east, west: west};
 }
 
+/*
+This function scans a bounding box row by row to find islands. If our pointer enters land and then leaves it, there's an island.
+We return any islands found, using the Point getConnected method.
+ */
 function detectIslands (landscape, bounds){
   var islands = [], islandPoints = [], visitedIslandPoints = {};
 
@@ -317,6 +368,7 @@ function detectIslands (landscape, bounds){
 
 }
 
+//Calculate the area via triangulation.
 function calculateArea (vertices){
 
   if (vertices.length < 3) return 0; //can't find the area of nothin'!
@@ -334,6 +386,99 @@ function calculateArea (vertices){
   return Math.abs(area/2);
 
 }
+
+/*
+An implementation of A* to find the shortest motorable path, using a heuristic of shortest path disregarding grade.
+ */
+Landscape.prototype.findMotorablePath = function (start, end, G){
+
+  initAstar(this);
+
+  start = this.getPoint(start[0],start[1]);
+  end = this.getPoint(end[0],end[1]);
+
+  var open = new BinaryHeap(function(point){
+    return point.f;
+  });
+
+  open.push(start);
+
+  while(open.size()){
+    var current = open.pop();
+
+    //if we've reached the end, return the path
+    if (current === end){
+      var path = [];
+      while (current.parent){
+        path.push(current);
+        current = current.parent;
+      }
+      path.push(start); //for clarity's sake
+      return path.reverse();
+    }
+
+    //if not, let's begin our search
+    current.closed = true;
+
+    var adjacent = [];
+
+    current.connections.forEach(function(edge){
+      if (edge.grade < G){
+        adjacent.push(edge.point1 === current ? edge.point2 : edge.point1); //push the node on the other side of the edge
+      }
+    });
+
+    adjacent.forEach(function(point){
+
+      if (point.closed) return; //invalid point to process, equivalent to 'continue' in a for loop
+
+      var gScore = current.g + point.cost,
+      previouslyVisited = point.visited;
+
+      //if we haven't visited, or the gscore is better, rescore the point
+      if (!previouslyVisited || gScore < point.g){
+        point.visited = true;
+        point.parent = current;
+        point.h = point.h || basicDistance(point, end);
+        point.g = gScore;
+        point.f = point.g + point.h;
+      }
+
+      //if we've visited it before, it's on the heap - but we need to rescore it
+      //if we haven't, push it onto the heap
+      previouslyVisited ? open.rescoreElement(point) : open.push(point);
+
+    });
+  }
+
+  return []; // no path found
+
+};
+
+//This gets our landscape ready for our A* search.
+function initAstar (landscape){
+  landscape.allPoints.forEach(function(point){
+    point.f = 0;
+    point.g = 0;
+    point.h = 0;
+    point.cost = 1;
+    point.visited = false;
+    point.closed = false;
+    point.parent = null;
+  });
+}
+
+//used as the A* heuristic, this gives the distance between two points traveling on grid lines
+function basicDistance (a, b) {
+  var d1 = Math.abs(a.x - b.x);
+  var d2 = Math.abs(a.y - b.y);
+  return d1 + d2;
+}
+
+var landscape = new Landscape(pathTest,5);
+console.log(landscape.findMotorablePath([0,0], [4,2], 1).toString());
+var landscape = new Landscape(pathTest2,5);
+console.log(landscape.findMotorablePath([0,0], [4,2], 1).toString());
 
 
 //after I have perimeter points, find the bounding box around all.
