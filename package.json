@@ -4,13 +4,16 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha -R nyan",
+    "start": "node run.js"
   },
   "author": "Bradley Portnoy <bp@bradleyportnoy.com> (http://www.bradleyportnoy.com)",
   "license": "ISC",
   "dependencies": {
+    "bluebird": "^2.9.25",
     "chai": "^2.3.0",
     "csv-parse": "^0.1.1",
-    "mocha": "^2.2.4"
+    "mocha": "^2.2.4",
+    "prompt": "^0.2.14"
   }
 }
